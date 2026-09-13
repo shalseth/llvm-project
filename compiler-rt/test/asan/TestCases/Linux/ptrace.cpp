@@ -82,6 +82,13 @@ typedef __riscv_q_ext_state fpregs_struct;
 #define PRINT_REG_FP(__fpregs) printf("%lx\n", (unsigned long)(__fpregs.fcsr))
 #define ARCH_IOVEC_FOR_GETREGSET
 
+#elif defined(__sparc__) && defined(__arch64__)
+typedef unsigned long regs_struct[19];
+typedef unsigned long fpregs_struct[33];
+#  define PRINT_REG_PC(__regs) printf("%lx\n", (__regs)[17])
+#  define PRINT_REG_FP(__fpregs) printf("%lx\n", (__fpregs)[32])
+#  define __PTRACE_FPREQUEST PTRACE_GETFPREGS
+
 #elif defined(__sparc__)
 typedef sunos_regs regs_struct;
 typedef sunos_fp fpregs_struct;

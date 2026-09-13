@@ -12,7 +12,7 @@
 // RUN: %run %t.dir/exe 2>&1 | count 0
 
 // Unaligned accesses don't work on strict-alignment targets like SPARC.
-// UNSUPPORTED: sparc-target-arch
+// UNSUPPORTED: target=sparc{{.*}}
 
 // CHECK: The following global variable is not properly aligned.
 // CHECK: ERROR: AddressSanitizer: odr-violation

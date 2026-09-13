@@ -65,8 +65,11 @@ int main() {
   size_t shadow_offset;
   __asan_get_shadow_mapping(&shadow_scale, &shadow_offset);
 
-  uintptr_t shadow_ptr = (((uintptr_t)heap_ptr) >> shadow_scale)
-                         + shadow_offset;
+  uintptr_t addr = (uintptr_t)heap_ptr;
+#if defined(__sparc__) && defined(__arch64__)
+  addr &= (1ULL << 52) - 1;
+#endif
+  uintptr_t shadow_ptr = (addr >> shadow_scale) + shadow_offset;
   type = __asan_locate_address((void *)shadow_ptr, NULL, 0, NULL, NULL);
   assert((0 == strcmp(type, "high shadow")) || 0 == strcmp(type, "low shadow"));
 

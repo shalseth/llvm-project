@@ -9,8 +9,8 @@
 #include <string.h>
 
 int main() {
-  char *p = new char;
-  char *dest = new char;
+  // Keep the starting addresses low enough that adding offset does not wrap.
+  static char p[1], dest[1];
   const size_t offset = 0x4567890123456789;
 
   // The output here needs to match the output from the sanitizer runtime,

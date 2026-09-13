@@ -40,11 +40,11 @@
 // RUN: %run %t realloc-after-malloc 2>&1 \
 // RUN:   | FileCheck %s --check-prefixes=CHECK-MALLOC-REALLOC,CHECK-NULL
 
-// ASan shadow memory on s390 is too large for this test.
+// ASan shadow memory on s390 and SPARC64 is too large for this test.
 // AArch64 bots fail on this test.
 // TODO(alekseys): Android lit do not run ulimit on device.
 // REQUIRES: shadow-scale-3
-// UNSUPPORTED: android, target={{(s390|aarch64|powerpc64le).*}}
+// UNSUPPORTED: android, target={{(s390|aarch64|powerpc64le|sparcv9|sparc64).*}}
 
 #include <stdlib.h>
 #include <string.h>
