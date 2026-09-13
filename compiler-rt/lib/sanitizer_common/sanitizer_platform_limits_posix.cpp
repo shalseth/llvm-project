@@ -99,7 +99,7 @@
 # include <sys/ptrace.h>
 #    if defined(__mips64) || defined(__aarch64__) || defined(__arm__) ||       \
         defined(__hexagon__) || defined(__loongarch__) || SANITIZER_RISCV64 || \
-        defined(__sparc__) || defined(__powerpc64__)
+        (defined(__sparc__) && !SANITIZER_SPARC64) || defined(__powerpc64__)
 #      include <asm/ptrace.h>
 #      ifdef __arm__
 typedef struct user_fpregs elf_fpregset_t;
@@ -407,6 +407,10 @@ unsigned struct_ElfW_Phdr_sz = sizeof(Elf_Phdr);
 #elif defined(__s390__)
   unsigned struct_user_regs_struct_sz = sizeof(struct _user_regs_struct);
   unsigned struct_user_fpregs_struct_sz = sizeof(struct _user_fpregs_struct);
+#    elif SANITIZER_SPARC64
+  // Linux PTRACE_GETREGS and PTRACE_GETFPREGS transfer 19 and 33 64-bit words.
+  unsigned struct_user_regs_struct_sz = 19 * sizeof(u64);
+  unsigned struct_user_fpregs_struct_sz = 33 * sizeof(u64);
 #    elif defined(__sparc__)
   unsigned struct_user_regs_struct_sz = sizeof(struct sunos_regs);
   unsigned struct_user_fpregs_struct_sz = sizeof(struct sunos_fp);
