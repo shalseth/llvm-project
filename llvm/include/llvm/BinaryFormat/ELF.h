@@ -1438,7 +1438,10 @@ enum {
   STT_HIPROC = 15,    // Highest processor-specific symbol type
 
   // AMDGPU symbol types
-  STT_AMDGPU_HSA_KERNEL = 10
+  STT_AMDGPU_HSA_KERNEL = 10,
+
+  // SPARC symbol types
+  STT_SPARC_REGISTER = 13
 };
 
 enum {

@@ -1744,6 +1744,10 @@ template <class ELFT> void SharedFile::parse() {
       continue;
     }
 
+    // Register symbols describe reserved registers, not linker references.
+    if (ctx.arg.emachine == EM_SPARCV9 && sym.getType() == STT_SPARC_REGISTER)
+      continue;
+
     const uint16_t ver = versyms[i], idx = ver & ~VERSYM_HIDDEN;
     if (sym.isUndefined()) {
       // Index 0 (VER_NDX_LOCAL) is used for unversioned undefined symbols.

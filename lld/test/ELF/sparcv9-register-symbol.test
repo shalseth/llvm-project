@@ -1,0 +1,44 @@
+# REQUIRES: sparc
+# RUN: split-file %s %t
+# RUN: llvm-mc -filetype=obj -triple=sparcv9 %t/a.s -o %t/a.o
+# RUN: yaml2obj %t/b.yaml -o %t/b.so
+# RUN: ld.lld --no-allow-shlib-undefined %t/a.o %t/b.so -o %t/a
+# RUN: yaml2obj %t/c.yaml -o %t/c.so
+# RUN: not ld.lld --no-allow-shlib-undefined %t/a.o %t/c.so -o /dev/null 2>&1 | FileCheck %s
+
+# CHECK: undefined reference: ordinary
+# CHECK-NEXT: {{.*}}c.so (disallowed by --no-allow-shlib-undefined)
+
+#--- a.s
+.globl _start
+_start:
+  retl
+  nop
+
+#--- b.yaml
+--- !ELF
+FileHeader:
+  Class: ELFCLASS64
+  Data: ELFDATA2MSB
+  Type: ET_DYN
+  Machine: EM_SPARCV9
+DynamicSymbols:
+  - Type: 0xD
+    Binding: STB_GLOBAL
+    Value: 2
+  - Name: __thread_self
+    Type: 0xD
+    Binding: STB_GLOBAL
+    Value: 7
+
+#--- c.yaml
+--- !ELF
+FileHeader:
+  Class: ELFCLASS64
+  Data: ELFDATA2MSB
+  Type: ET_DYN
+  Machine: EM_SPARCV9
+DynamicSymbols:
+  - Name: ordinary
+    Type: STT_OBJECT
+    Binding: STB_GLOBAL
