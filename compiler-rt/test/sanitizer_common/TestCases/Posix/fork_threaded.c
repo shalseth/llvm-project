@@ -11,6 +11,8 @@
 
 // FIXME: Requires `FutexWait` implementation. See __asan::InstallAtForkHandler.
 // UNSUPPORTED: target={{.*solaris.*}}
+// ASan disables its atfork handlers on Linux/SPARC32.
+// UNSUPPORTED: target=sparc-{{.*linux.*}} && asan
 // UNSUPPORTED: target={{.*netbsd.*}}
 // UNSUPPORTED: target={{.*apple.*}}
 

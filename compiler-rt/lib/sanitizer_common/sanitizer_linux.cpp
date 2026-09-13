@@ -951,6 +951,26 @@ int internal_fork() {
 #    if SANITIZER_LINUX
 #      if SANITIZER_S390
   return internal_syscall(SYSCALL(clone), 0, SIGCHLD);
+#      elif SANITIZER_SPARC64
+  // The child indicator is returned in %o1, which syscall() discards.
+  register long result asm("o0");
+  register long child asm("o1");
+  register long number asm("g1") = SYSCALL(fork);
+  asm volatile(
+      "ta 0x6d\n\t"
+      "bcc,pt %%xcc, 1f\n\t"
+      " nop\n\t"
+      "neg %[result]\n\t"
+      "mov 0, %[child]\n"
+      "1:"
+      : [result] "=r"(result), [child] "=r"(child), "+r"(number)
+      :
+      : "cc", "memory");
+  if (result < 0) {
+    errno = -result;
+    return -1;
+  }
+  return child ? 0 : result;
 #      elif SANITIZER_SPARC
   // The clone syscall interface on SPARC differs massively from the rest,
   // so fall back to __fork.

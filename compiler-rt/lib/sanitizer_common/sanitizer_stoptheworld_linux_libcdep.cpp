@@ -411,7 +411,7 @@ struct ScopedSetTracerPID {
 // cannot use waitpid() due to the shared errno.
 static void TestPTrace() {
 #  if SANITIZER_SPARC
-  // internal_fork() on SPARC actually calls __fork(). We can't safely fork,
+  // internal_fork() on SPARC uses fork rather than clone. We can't safely fork,
   // because it's possible seccomp has been configured to disallow fork() but
   // allow clone().
   VReport(1, "WARNING: skipping TestPTrace() because this is SPARC\n");

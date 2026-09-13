@@ -15,14 +15,44 @@
 
 #  include <pthread.h>
 #  include <sys/mman.h>
+#  include <sys/wait.h>
+#  include <unistd.h>
 
 #  include <algorithm>
 #  include <numeric>
 
 #  include "gtest/gtest.h"
 #  include "sanitizer_common/sanitizer_common.h"
+#  include "sanitizer_common/sanitizer_posix.h"
 
 namespace __sanitizer {
+
+#  if SANITIZER_LINUX && SANITIZER_SPARC64
+static atomic_uint32_t fork_callbacks;
+static void CountForkCallback() {
+  atomic_fetch_add(&fork_callbacks, 1, memory_order_relaxed);
+}
+
+TEST(SanitizerPosix, InternalForkSkipsAtFork) {
+  ASSERT_EQ(
+      pthread_atfork(CountForkCallback, CountForkCallback, CountForkCallback),
+      0);
+  for (bool internal : {true, false}) {
+    atomic_store(&fork_callbacks, 0, memory_order_relaxed);
+    pid_t pid = internal ? internal_fork() : fork();
+    ASSERT_GE(pid, 0);
+    unsigned expected = internal ? 0 : 2;
+    if (pid == 0)
+      _exit(atomic_load(&fork_callbacks, memory_order_relaxed) == expected ? 0
+                                                                           : 1);
+    int status;
+    ASSERT_EQ(waitpid(pid, &status, 0), pid);
+    ASSERT_TRUE(WIFEXITED(status));
+    EXPECT_EQ(WEXITSTATUS(status), 0);
+    EXPECT_EQ(atomic_load(&fork_callbacks, memory_order_relaxed), expected);
+  }
+}
+#  endif
 
 static pthread_key_t key;
 static bool destructor_executed;
