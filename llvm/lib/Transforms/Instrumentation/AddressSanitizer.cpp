@@ -107,6 +107,7 @@ static const uint64_t kSmallX86_64ShadowOffsetAlignMask = ~0xFFFULL;
 static const uint64_t kLinuxKasan_ShadowOffset64 = 0xdffffc0000000000;
 static const uint64_t kPPC64_ShadowOffset64 = 1ULL << 44;
 static const uint64_t kSystemZ_ShadowOffset64 = 1ULL << 52;
+static const uint64_t kSparcV9_ShadowOffset64 = 1ULL << 43;
 static const uint64_t kMIPS_ShadowOffsetN32 = 1ULL << 29;
 static const uint64_t kMIPS32_ShadowOffset32 = 0x0aaa0000;
 static const uint64_t kMIPS64_ShadowOffset64 = 1ULL << 37;
@@ -505,6 +506,7 @@ static ShadowMapping getShadowMapping(const Triple &TargetTriple, int LongSize,
   bool IsPPC64 = TargetTriple.getArch() == Triple::ppc64 ||
                  TargetTriple.getArch() == Triple::ppc64le;
   bool IsSystemZ = TargetTriple.getArch() == Triple::systemz;
+  bool IsLinuxSparcV9 = IsLinux && TargetTriple.getArch() == Triple::sparcv9;
   bool IsX86_64 = TargetTriple.getArch() == Triple::x86_64;
   bool IsMIPSN32ABI = TargetTriple.isABIN32();
   bool IsMIPS32 = TargetTriple.isMIPS32();
@@ -557,6 +559,8 @@ static ShadowMapping getShadowMapping(const Triple &TargetTriple, int LongSize,
       Mapping.Offset = kPPC64_ShadowOffset64;
     else if (IsSystemZ)
       Mapping.Offset = kSystemZ_ShadowOffset64;
+    else if (IsLinuxSparcV9)
+      Mapping.Offset = kSparcV9_ShadowOffset64;
     else if (IsFreeBSD && IsAArch64)
         Mapping.Offset = kFreeBSDAArch64_ShadowOffset64;
     else if (IsFreeBSD && !IsMIPS64) {
@@ -619,7 +623,7 @@ static ShadowMapping getShadowMapping(const Triple &TargetTriple, int LongSize,
   // SystemZ, we could OR the constant in a single instruction, but it's more
   // efficient to load it once and use indexed addressing.
   Mapping.OrShadowOffset = !IsAArch64 && !IsPPC64 && !IsSystemZ && !IsPS &&
-                           !IsRISCV64 && !IsLoongArch64 &&
+                           !IsRISCV64 && !IsLoongArch64 && !IsLinuxSparcV9 &&
                            !(Mapping.Offset & (Mapping.Offset - 1)) &&
                            Mapping.Offset != kDynamicShadowSentinel;
   Mapping.InGlobal = ClWithIfunc && IsAndroid && IsArmOrThumb;
@@ -1427,6 +1431,11 @@ Value *AddressSanitizer::memToShadow(Value *Shadow, IRBuilder<> &IRB) {
     // Strip MTE-tag bits before translating to shadow address
     Shadow = IRB.CreateAnd(Shadow,
                            ConstantInt::get(IntptrTy, ~(uint64_t(0x0f) << 56)));
+  }
+  if (TargetTriple.isOSLinux() && TargetTriple.getArch() == Triple::sparcv9) {
+    // Match the 52-bit mapping in asan_mapping_sparc64.h.
+    Shadow =
+        IRB.CreateAnd(Shadow, ConstantInt::get(IntptrTy, (1ULL << 52) - 1));
   }
   // Shadow >> scale
   Shadow = IRB.CreateLShr(Shadow, Mapping.Scale);
