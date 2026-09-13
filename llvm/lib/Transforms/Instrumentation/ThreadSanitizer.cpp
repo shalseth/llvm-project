@@ -581,6 +581,11 @@ bool ThreadSanitizer::sanitizeFunction(Function &F,
                                            DL.getProgramAddressSpace());
     Value *ReturnAddress = IRB.CreateIntrinsic(
         Intrinsic::returnaddress, {ProgramAsPtrTy}, IRB.getInt32(0));
+    if (F.getParent()->getTargetTriple().getArch() == Triple::sparcv9) {
+      // SPARC64 saves the CALL address, before the delay slot and return PC.
+      ReturnAddress =
+          IRB.CreateGEP(IRB.getInt8Ty(), ReturnAddress, IRB.getInt64(8));
+    }
     IRB.CreateCall(TsanFuncEntry, ReturnAddress);
 
     EscapeEnumerator EE(F, "tsan_cleanup", ClHandleCxxExceptions);
