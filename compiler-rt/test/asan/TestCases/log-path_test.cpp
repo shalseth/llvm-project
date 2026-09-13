@@ -12,8 +12,9 @@
 // RUN: %env_asan_opts=log_path=%t.log not %run %t 2> %t.out
 // RUN: FileCheck %s --check-prefix=CHECK-ERROR < %t.log.*
 
-// Invalid log_path in existing directory.
-// RUN: %env_asan_opts=log_path=/INVALID not %run %t 2> %t.out
+// A filename exceeding NAME_MAX cannot be opened, even when running as root.
+// RUN: %python -c "print('X' * 256, end='')" > %t.invalid_log_path
+// RUN: %env_asan_opts=log_path=INVALID%{readfile:%t.invalid_log_path} not %run %t 2> %t.out
 // RUN: FileCheck %s --check-prefix=CHECK-INVALID < %t.out
 
 // Directory of log_path can't be created.
@@ -45,6 +46,6 @@ int main(int argc, char **argv) {
   return res;
 }
 // CHECK-ERROR: ERROR: AddressSanitizer
-// CHECK-INVALID: ERROR: Can't open file: /INVALID
+// CHECK-INVALID: ERROR: Can't open file: INVALID
 // CHECK-BAD-DIR: ERROR: Can't create directory: /dev/null
 // CHECK-LONG: ERROR: Path is too long: 01234
