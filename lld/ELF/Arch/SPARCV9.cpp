@@ -6,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "InputFiles.h"
 #include "RelocScan.h"
+#include "SymbolTable.h"
 #include "Symbols.h"
 #include "SyntheticSections.h"
 #include "Target.h"
@@ -48,6 +50,8 @@ SPARCV9::SPARCV9(Ctx &ctx) : TargetInfo(ctx) {
   relativeRel = R_SPARC_RELATIVE;
   symbolicRel = R_SPARC_64;
   tlsGotRel = R_SPARC_TLS_TPOFF64;
+  tlsModuleIndexRel = R_SPARC_TLS_DTPMOD64;
+  tlsOffsetRel = R_SPARC_TLS_DTPOFF64;
   gotHeaderEntriesNum = 1;
   pltEntrySize = 32;
   pltHeaderSize = 4 * pltEntrySize;
@@ -107,9 +111,11 @@ void SPARCV9::scanSectionImpl(InputSectionBase &sec, Relocs<RelTy> rels,
   for (auto it = rels.begin(); it != rels.end(); ++it) {
     const RelTy &rel = *it;
     uint32_t symIdx = rel.getSymbol(false);
-    Symbol &sym = sec.getFile<ELFT>()->getSymbol(symIdx);
     uint64_t offset = rel.r_offset;
     RelType type = rel.getType(false);
+    Symbol &sym = type == R_SPARC_TLS_GD_CALL
+                      ? *ctx.symtab->find("__tls_get_addr")
+                      : sec.getFile<ELFT>()->getSymbol(symIdx);
     if (sym.isUndefined() && symIdx != 0 &&
         rs.maybeReportUndefined(cast<Undefined>(sym), offset))
       continue;
@@ -117,6 +123,7 @@ void SPARCV9::scanSectionImpl(InputSectionBase &sec, Relocs<RelTy> rels,
     RelExpr expr;
     switch (type) {
     case R_SPARC_NONE:
+    case R_SPARC_TLS_GD_ADD:
     case R_SPARC_TLS_IE_ADD:
       continue;
 
@@ -180,6 +187,14 @@ void SPARCV9::scanSectionImpl(InputSectionBase &sec, Relocs<RelTy> rels,
         ctx.in.got->hasGotOffRel.store(true, std::memory_order_relaxed);
         expr = R_GOTREL;
       }
+      break;
+
+    case R_SPARC_TLS_GD_HI22:
+    case R_SPARC_TLS_GD_LO10:
+      rs.handleTlsGd(R_TLSGD_GOT, R_NONE, R_NONE, type, offset, addend, sym);
+      continue;
+    case R_SPARC_TLS_GD_CALL:
+      expr = R_PLT_PC;
       break;
 
     // TLS LE relocations:
@@ -250,6 +265,7 @@ void SPARCV9::relocate(uint8_t *loc, const Relocation &rel,
     break;
   case R_SPARC_WDISP30:
   case R_SPARC_WPLT30:
+  case R_SPARC_TLS_GD_CALL:
     // V-disp30
     checkInt(ctx, loc, val, 32, rel);
     write32be(loc, (read32be(loc) & ~0x3fffffff) | ((val >> 2) & 0x3fffffff));
@@ -270,6 +286,7 @@ void SPARCV9::relocate(uint8_t *loc, const Relocation &rel,
     write32be(loc, (read32be(loc) & ~0x00001fff) | (val & 0x00001fff));
     break;
   case R_SPARC_GOT22:
+  case R_SPARC_TLS_GD_HI22:
   case R_SPARC_LM22:
     // T-imm22
     write32be(loc, (read32be(loc) & ~0x003fffff) | ((val >> 10) & 0x003fffff));
@@ -302,6 +319,7 @@ void SPARCV9::relocate(uint8_t *loc, const Relocation &rel,
                        ((val >> 2) & 0x00003fff));
     break;
   case R_SPARC_GOT10:
+  case R_SPARC_TLS_GD_LO10:
   case R_SPARC_PC10:
     // T-simm10
     write32be(loc, (read32be(loc) & ~0x000003ff) | (val & 0x000003ff));
@@ -313,6 +331,7 @@ void SPARCV9::relocate(uint8_t *loc, const Relocation &rel,
   case R_SPARC_64:
   case R_SPARC_DISP64:
   case R_SPARC_UA64:
+  case R_SPARC_TLS_DTPOFF64:
     // V-xword64
     write64be(loc, val);
     break;

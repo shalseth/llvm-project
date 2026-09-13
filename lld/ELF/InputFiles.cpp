@@ -695,6 +695,34 @@ template <class ELFT> void ObjFile<ELFT>::parse(bool ignoreComdats) {
 
   // Read a symbol table.
   initializeSymbols(obj);
+
+  // SPARC GD calls name the TLS variable and implicitly call __tls_get_addr.
+  // Resolve the function early enough to extract archives and retain DSOs.
+  if (ctx.arg.emachine == EM_SPARCV9 && !ctx.arg.relocatable) {
+    auto isGdCall = [](const auto &rel) {
+      return rel.getType(false) == R_SPARC_TLS_GD_CALL;
+    };
+    for (const Elf_Shdr &sec : objSections) {
+      if (!isStaticRelSecType(sec.sh_type))
+        continue;
+      bool found;
+      if (sec.sh_type == SHT_CREL) {
+        auto [rels, relas] = CHECK2(obj.crels(sec), this);
+        found = llvm::any_of(rels, isGdCall) || llvm::any_of(relas, isGdCall);
+      } else if (sec.sh_type == SHT_RELA) {
+        found = llvm::any_of(CHECK2(obj.relas(sec), this), isGdCall);
+      } else {
+        found = llvm::any_of(CHECK2(obj.rels(sec), this), isGdCall);
+      }
+      if (found) {
+        Symbol *sym = ctx.symtab->addSymbol(Undefined{
+            this, "__tls_get_addr", STB_GLOBAL, STV_DEFAULT, STT_FUNC});
+        sym->isUsedInRegularObj = true;
+        sym->referenced = true;
+        break;
+      }
+    }
+  }
 }
 
 // Sections with SHT_GROUP and comdat bits define comdat section groups.

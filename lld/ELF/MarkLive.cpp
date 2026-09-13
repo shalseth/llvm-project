@@ -122,6 +122,9 @@ void MarkLive<ELFT, TrackWhyLive>::resolveReloc(InputSectionBase &sec,
     sym = rel.sym;
   } else {
     sym = &sec.file->getRelocTargetSym(rel);
+    if (ctx.arg.emachine == EM_SPARCV9 &&
+        rel.getType(false) == R_SPARC_TLS_GD_CALL)
+      sym = ctx.symtab->find("__tls_get_addr");
   }
   sym->setFlags(USED);
 
@@ -519,7 +522,10 @@ static void processSectionEdges(
         &cNamedSections,
     Fn fn) {
   auto resolveEdge = [&](const auto &rel) {
-    Symbol &sym = sec.file->getRelocTargetSym(rel);
+    Symbol &sym = ctx.arg.emachine == EM_SPARCV9 &&
+                          rel.getType(false) == R_SPARC_TLS_GD_CALL
+                      ? *ctx.symtab->find("__tls_get_addr")
+                      : sec.file->getRelocTargetSym(rel);
     if (!sym.hasFlag(USED))
       sym.setFlags(USED);
     if (auto *d = dyn_cast<Defined>(&sym)) {

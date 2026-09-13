@@ -29,6 +29,9 @@ from the [LLVM releases web site](https://llvm.org/releases/).
 
 ### ELF Improvements
 
+- Added SPARC V9 general-dynamic TLS relocation support and fixed handling of
+  SPARC register symbols in shared libraries.
+
 ### Breaking changes
 
 ### COFF Improvements
