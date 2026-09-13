@@ -1,6 +1,6 @@
 // RUN: %clangxx_asan -O %s -o %t
 // RUN: not %run %t crash 2>&1 | FileCheck --check-prefix=CHECK-CRASH %s
-// RUN: %env_asan_opts=poison_history_size=10000 not %run %t crash 2>&1 | FileCheck --check-prefix=CHECK-CRASH,POISON %s
+// RUN: %env_asan_opts=poison_history_size=10000 not %run %t crash 2>&1 | FileCheck --check-prefixes=CHECK-CRASH,POISON %s
 // RUN: not %run %t bad-bounds 2>&1 | FileCheck --check-prefix=CHECK-BAD-BOUNDS %s
 // RUN: not %run %t unaligned-bad-bounds 2>&1 | FileCheck --check-prefix=CHECK-UNALIGNED-BAD-BOUNDS %s --implicit-check-not="beg is not aligned by"
 // RUN: not %run %t odd-alignment 2>&1 | FileCheck --check-prefix=CHECK-CRASH %s
@@ -9,8 +9,8 @@
 //
 // RUN: not %run %t double-crash-beg 2>&1 | FileCheck --check-prefix=DOUBLE-CRASH-BEG %s
 // RUN: not %run %t double-crash-end 2>&1 | FileCheck --check-prefix=DOUBLE-CRASH-END %s
-// RUN: %env_asan_opts=poison_history_size=10000 not %run %t double-crash-beg 2>&1 | FileCheck --check-prefix=DOUBLE-CRASH-BEG,POISON %s
-// RUN: %env_asan_opts=poison_history_size=10000 not %run %t double-crash-end 2>&1 | FileCheck --check-prefix=DOUBLE-CRASH-END,POISON %s
+// RUN: %env_asan_opts=poison_history_size=10000 not %run %t double-crash-beg 2>&1 | FileCheck --check-prefixes=DOUBLE-CRASH-BEG,POISON %s
+// RUN: %env_asan_opts=poison_history_size=10000 not %run %t double-crash-end 2>&1 | FileCheck --check-prefixes=DOUBLE-CRASH-END,POISON %s
 // RUN: not %run %t double-bad-bounds 2>&1 | FileCheck --check-prefix=DOUBLE-BAD-BOUNDS %s
 // RUN: not %run %t double-unaligned-bad-bounds 2>&1 | FileCheck --check-prefix=DOUBLE-UNALIGNED-BAD-BOUNDS %s --implicit-check-not="beg is not aligned by"
 // RUN: not %run %t double-odd-alignment 2>&1 | FileCheck --check-prefix=DOUBLE-CRASH-BEG %s
