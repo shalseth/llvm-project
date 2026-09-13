@@ -795,6 +795,26 @@ struct MappingGoS390x {
   static const uptr kShadowAdd = 0x400000000000ull;
 };
 
+// Linux/SPARC64 with a 52-bit, sign-extended user address space.
+struct MappingSparc64_52 {
+  static const uptr kLoAppMemBeg = 0x020000000000ull;
+  static const uptr kLoAppMemEnd = 0x030000000000ull;
+  static const uptr kMidAppMemBeg = 0x060000000000ull;
+  static const uptr kMidAppMemEnd = 0x080000000000ull;
+  static const uptr kHiAppMemBeg = 0xfff8000100000000ull;
+  static const uptr kHiAppMemEnd = 0xfff8020000000000ull;
+  static const uptr kHeapMemBeg = 0xfff8040000000000ull;
+  static const uptr kHeapMemEnd = 0xfff8050000000000ull;
+  static const uptr kShadowBeg = 0x100000000000ull;
+  static const uptr kShadowEnd = 0x200000000000ull;
+  static const uptr kMetaShadowBeg = 0x200000000000ull;
+  static const uptr kMetaShadowEnd = 0x240000000000ull;
+  static const uptr kShadowMsk = 0xfff8000000000000ull;
+  static const uptr kShadowXor = 0;
+  static const uptr kShadowAdd = kShadowBeg;
+  static const uptr kVdsoBeg = 0xffffffffffffffffull;
+};
+
 extern uptr vmaSize;
 
 template <typename Func, typename Arg>
@@ -865,6 +885,9 @@ ALWAYS_INLINE auto SelectMapping(Arg arg) {
   }
 #  elif defined(__s390x__)
   return Func::template Apply<MappingS390x>(arg);
+#  elif SANITIZER_LINUX && SANITIZER_SPARC64
+  if (vmaSize == 52)
+    return Func::template Apply<MappingSparc64_52>(arg);
 #  else
 #    error "unsupported platform"
 #  endif
@@ -888,6 +911,7 @@ void ForEachMapping() {
   Func::template Apply<MappingRiscv64_39>();
   Func::template Apply<MappingRiscv64_48>();
   Func::template Apply<MappingS390x>();
+  Func::template Apply<MappingSparc64_52>();
   Func::template Apply<MappingGo48>();
   Func::template Apply<MappingGoWindows>();
   Func::template Apply<MappingGoPPC64_46>();

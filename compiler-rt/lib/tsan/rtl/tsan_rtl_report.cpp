@@ -109,7 +109,7 @@ static ReportStack *SymbolizeStack(StackTrace trace) {
     uptr pc1 = pc;
     // We obtain the return address, but we're interested in the previous
     // instruction.
-    if ((pc & kExternalPCBit) == 0)
+    if (!IsExternalPC(pc))
       pc1 = StackTrace::GetPreviousInstructionPc(pc);
     SymbolizedStack* ent = SymbolizeCode(pc1, si == trace.size - 1);
 #if SANITIZER_GO

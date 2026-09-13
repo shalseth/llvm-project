@@ -20,6 +20,7 @@
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/MultilibBuilder.h"
+#include "clang/Driver/SanitizerArgs.h"
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"
 #include "clang/Options/Options.h"
@@ -328,6 +329,16 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   ToolChain.addExtraOpts(CmdArgs);
 
+  bool IsLLD;
+  const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath(&IsLLD));
+  const bool IsSparc64TsanExecutable =
+      Triple.isOSLinux() && Arch == llvm::Triple::sparcv9 &&
+      ToolChain.getSanitizerArgs(Args).needsTsanRt() &&
+      !Args.hasArg(options::OPT_shared) && !Args.hasArg(options::OPT_r);
+  if (IsSparc64TsanExecutable)
+    CmdArgs.push_back(IsLLD ? "--image-base=0x20000000000"
+                            : "-Ttext-segment=0x20000000000");
+
   CmdArgs.push_back("--eh-frame-hdr");
 
   if (const char *LDMOption = getLDMOption(ToolChain.getTriple(), Args)) {
@@ -362,6 +373,9 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     if (!IsShared) {
       IsPIE = Args.hasFlag(options::OPT_pie, options::OPT_no_pie,
                            ToolChain.isPIEDefault(Args));
+      // LLD's --image-base does not imply a fixed-address executable.
+      if (IsLLD && IsSparc64TsanExecutable)
+        IsPIE = false;
       if (IsPIE)
         CmdArgs.push_back("-pie");
       CmdArgs.push_back("-dynamic-linker");
@@ -601,7 +615,6 @@ void tools::gnutools::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // ld.
   Args.addAllArgs(CmdArgs, {options::OPT_T});
 
-  const char *Exec = Args.MakeArgString(ToolChain.GetLinkerPath());
   C.addCommand(std::make_unique<Command>(JA, *this,
                                          ResponseFileSupport::AtFileCurCP(),
                                          Exec, CmdArgs, Inputs, Output));

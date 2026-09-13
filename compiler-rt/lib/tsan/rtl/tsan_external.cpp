@@ -18,7 +18,7 @@
 
 namespace __tsan {
 
-#define CALLERPC ((uptr)__builtin_return_address(0))
+#define CALLERPC GET_CALLER_PC()
 
 struct TagData {
   const char *object_type;

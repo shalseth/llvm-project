@@ -125,7 +125,8 @@ const int SIGFPE = 8;
 const int SIGSEGV = 11;
 const int SIGPIPE = 13;
 const int SIGTERM = 15;
-#if defined(__mips__) || SANITIZER_FREEBSD || SANITIZER_APPLE || SANITIZER_NETBSD
+#if defined(__mips__) || SANITIZER_FREEBSD || SANITIZER_APPLE || \
+    SANITIZER_NETBSD || (SANITIZER_LINUX && SANITIZER_SPARC64)
 const int SIGBUS = 10;
 const int SIGSYS = 12;
 #else
@@ -154,6 +155,9 @@ typedef __sanitizer::u16 mode_t;
 #if SANITIZER_FREEBSD || SANITIZER_APPLE || SANITIZER_NETBSD
 const int SA_SIGINFO = 0x40;
 const int SIG_SETMASK = 3;
+#elif SANITIZER_LINUX && SANITIZER_SPARC64
+const int SA_SIGINFO = 0x200;
+const int SIG_SETMASK = 4;
 #elif defined(__mips__)
 const int SA_SIGINFO = 8;
 const int SIG_SETMASK = 3;

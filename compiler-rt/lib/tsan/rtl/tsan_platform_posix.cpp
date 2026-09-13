@@ -143,6 +143,17 @@ bool CheckAndProtect(bool protect, bool ignore_heap, bool print_warnings) {
   ProtectRange(HeapMemEnd(), ShadowBeg());
   ProtectRange(ShadowEnd(), MetaShadowBeg());
   ProtectRange(MetaShadowEnd(), HiAppMemBeg());
+#    elif SANITIZER_LINUX && SANITIZER_SPARC64
+  const uptr page = GetPageSizeCached();
+  ProtectRange(LoAppMemEnd(), MidAppMemBeg());
+  ProtectRange(MidAppMemEnd(), ShadowBeg());
+  ProtectRange(ShadowEnd(), MetaShadowBeg());
+  ProtectRange(MetaShadowEnd(), (1ull << (vmaSize - 1)) - (1ull << 32) - page);
+  ProtectRange(HiAppMemEnd(), HeapMemBeg());
+  // Linux reserves VPTE_SIZE = 2^(44 - PAGE_SHIFT + 3) at the top.
+  const uptr user_end = -((1ull << 47) / page);
+  ProtectRange(HeapEnd(), user_end);
+  TryProtectRange(user_end, RoundDown(~uptr(0), page));
 #    else
   ProtectRange(LoAppMemEnd(), ShadowBeg());
   ProtectRange(ShadowEnd(), MetaShadowBeg());

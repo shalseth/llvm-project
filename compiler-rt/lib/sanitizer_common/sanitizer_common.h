@@ -50,6 +50,15 @@ const uptr kErrorMessageBufferSize = 1 << 16;
 // For such PC values __tsan_symbolize_external_ex() will be called.
 const u64 kExternalPCBit = 1ULL << 60;
 
+inline bool IsExternalPC(uptr pc) {
+#if SANITIZER_SPARC64
+  // Native SPARC64 PCs can be sign-extended into the high half.
+  if (pc & (1ULL << 63))
+    return false;
+#endif
+  return pc & kExternalPCBit;
+}
+
 extern const char *SanitizerToolName;  // Can be changed by the tool.
 
 extern atomic_uint32_t current_verbosity;

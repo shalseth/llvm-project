@@ -225,6 +225,8 @@ else()
       set(TSAN_ASM_SOURCES
         tsan_rtl_riscv64.S
         )
+    elseif(arch STREQUAL "sparcv9")
+      set(TSAN_ASM_SOURCES tsan_rtl_sparc64.S)
     elseif(arch MATCHES "s390x")
       set(TSAN_ASM_SOURCES
         tsan_rtl_s390x.S

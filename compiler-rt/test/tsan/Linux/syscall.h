@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <fcntl.h>
 #include <sanitizer/linux_syscall_hooks.h>
 #include <signal.h>
@@ -7,7 +8,28 @@
 
 int myfork() {
   __sanitizer_syscall_pre_fork();
-#ifdef SYS_fork
+#if defined(__sparc__) && defined(__arch64__)
+  // SPARC returns the child indicator in %o1, which syscall() discards.
+  register long result asm("o0");
+  register long child asm("o1");
+  register long number asm("g1") = SYS_fork;
+  asm volatile("ta 0x6d\n\t"
+               "bcc,pt %%xcc, 1f\n\t"
+               " nop\n\t"
+               "neg %[result]\n\t"
+               "mov 0, %[child]\n"
+               "1:"
+               : [result] "=r"(result), [child] "=r"(child), "+r"(number)
+               :
+               : "cc", "memory");
+  int res;
+  if (result < 0) {
+    errno = -result;
+    res = -1;
+  } else {
+    res = child ? 0 : result;
+  }
+#elif defined(SYS_fork)
   int res = syscall(SYS_fork);
 #else
   int res = syscall(SYS_clone, SIGCHLD, 0);

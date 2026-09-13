@@ -2,6 +2,7 @@
 // RUN: %run %t 2>&1 | FileCheck %s
 // RUN: %run %t arg 2>&1 | FileCheck %s
 #include "java.h"
+#include <string.h>
 
 jptr varaddr1_old;
 jptr varaddr2_old;
@@ -11,7 +12,8 @@ jptr varaddr2_new;
 void *Thread(void *p) {
   barrier_wait(&barrier);
   *(int*)varaddr1_new = 43;
-  *(int*)varaddr2_new = 43;
+  int value = 43;
+  memcpy((void *)varaddr2_new, &value, sizeof(value));
   return 0;
 }
 
@@ -40,7 +42,8 @@ int main(int argc, char **argv) {
   pthread_create(&th, 0, Thread, 0);
 
   *(int*)varaddr1_old = 43;
-  *(int*)varaddr2_old = 43;
+  int value = 43;
+  memcpy((void *)varaddr2_old, &value, sizeof(value));
 
   __tsan_java_move(varaddr1_old, varaddr1_new, kBlockSize);
   barrier_wait(&barrier);

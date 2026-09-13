@@ -18,7 +18,7 @@ ThreadSanitizer is supported on the following OS:
 - Android aarch64, x86_64
 - Darwin arm64, x86_64
 - FreeBSD
-- Linux aarch64, x86_64, powerpc64, powerpc64le
+- Linux aarch64, x86_64, powerpc64, powerpc64le, sparc64
 - NetBSD
 
 Support for other 64-bit architectures is possible, contributions are welcome.
@@ -68,6 +68,21 @@ WARNING: ThreadSanitizer: data race (pid=19219)
     #0 pthread_create tsan_interceptors.cc:705 (exe+0x00000000c790)
     #1 main tiny_race.c:9 (exe+0x00000000a3a4)
 ```
+
+### Linux SPARC64
+
+SPARC64 support requires a 52-bit user virtual address space, as on UltraSPARC
+T4. The runtime checks the address-space width and rejects unsupported layouts.
+Both the `sparcv9` and `sparc64` target names are accepted.
+
+Executables must be linked at `0x20000000000` so their addresses can be
+distinguished from high-half shared-library mappings in TSan traces. Clang adds
+`-Ttext-segment=0x20000000000` when linking a SPARC64 Linux executable with
+`-fsanitize=thread`. When linking through another driver, pass
+`-Wl,-Ttext-segment=0x20000000000` explicitly. GNU ld produces a fixed-address
+executable with this option, even when `-pie` is also specified. With LLD, Clang
+uses `--image-base=0x20000000000` and disables PIE linking to obtain the same
+fixed placement. Shared libraries retain their normal placement.
 
 ## `__has_feature(thread_sanitizer)`
 
@@ -185,7 +200,8 @@ src:file_with_tricky_code.cc
 
 - Libc/libstdc++ static linking is not supported.
 
-- Non-position-independent executables are not supported. Therefore, the
+- Except for the fixed-address Linux SPARC64 layout described above,
+  non-position-independent executables are not supported. Therefore, the
   `fsanitize=thread` flag will cause Clang to act as though the `-fPIE`
   flag had been supplied if compiling without `-fPIC`, and as though the
   `-pie` flag had been supplied if linking an executable.

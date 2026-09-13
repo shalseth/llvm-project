@@ -16,7 +16,7 @@
 #include "sanitizer_common/sanitizer_internal_defs.h"
 #include "sanitizer_common/sanitizer_ptrauth.h"
 
-#define CALLERPC ((uptr)__builtin_return_address(0))
+#define CALLERPC GET_CALLER_PC()
 
 using namespace __tsan;
 

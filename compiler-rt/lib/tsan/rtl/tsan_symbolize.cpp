@@ -81,7 +81,7 @@ static void AddFrame(void *ctx, const char *function_name, const char *file,
 
 SymbolizedStack* SymbolizeCode(uptr addr, bool leaf) {
   // Check if PC comes from non-native land.
-  if (addr & kExternalPCBit) {
+  if (IsExternalPC(addr)) {
     SymbolizedStackBuilder ssb = {nullptr, nullptr, addr};
     __tsan_symbolize_external_ex(addr, AddFrame, &ssb);
     if (ssb.head)

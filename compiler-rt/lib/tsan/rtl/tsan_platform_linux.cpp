@@ -287,6 +287,13 @@ static void ReExecIfNeeded(bool ignore_heap) {
   if (reexec) {
     // Don't check the address space since we're going to re-exec anyway.
   } else if (!CheckAndProtect(false, ignore_heap, false)) {
+#      if SANITIZER_SPARC64
+    CheckAndProtect(false, ignore_heap, true);
+    Printf(
+        "FATAL: ThreadSanitizer: incompatible SPARC64 memory layout; "
+        "link the executable at 0x20000000000\n");
+    Die();
+#      endif
     // ASLR personality check.
     // N.B. 'personality' is sometimes forbidden by sandboxes, so we only call
     // this as a last resort (when the memory mapping is incompatible and TSan
@@ -337,8 +344,26 @@ static void ReExecIfNeeded(bool ignore_heap) {
 #  endif
 
 void InitializePlatformEarly() {
-  vmaSize =
-    (MostSignificantSetBitIndex(GET_CURRENT_FRAME()) + 1);
+#  if SANITIZER_SPARC64 && !SANITIZER_GO
+  const uptr page = GetPageSizeCached();
+  const uptr probe = internal_mmap(nullptr, page, PROT_NONE,
+                                   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (internal_iserror(probe)) {
+    Printf("FATAL: ThreadSanitizer: unable to probe SPARC64 address space\n");
+    Die();
+  }
+  vmaSize = (probe >> 63) ? MostSignificantSetBitIndex(~probe) + 2 : 0;
+  internal_munmap(reinterpret_cast<void*>(probe), page);
+  if (vmaSize != 52) {
+    Printf(
+        "FATAL: ThreadSanitizer: unsupported SPARC64 VMA size %zu; "
+        "only 52-bit address spaces are supported\n",
+        vmaSize);
+    Die();
+  }
+#  else
+  vmaSize = (MostSignificantSetBitIndex(GET_CURRENT_FRAME()) + 1);
+#  endif
 #if defined(__aarch64__)
 # if !SANITIZER_GO
   if (vmaSize != 39 && vmaSize != 42 && vmaSize != 47 && vmaSize != 48) {
@@ -543,6 +568,8 @@ static uptr UnmangleLongJmpSp(uptr mangled_sp) {
   return mangled_sp;
 #    elif SANITIZER_RISCV64
   return mangled_sp;
+#    elif SANITIZER_SPARC64
+  return mangled_sp;
 #    elif defined(__s390x__)
   // tcbhead_t.stack_guard
   uptr xor_key = ((uptr *)__builtin_thread_pointer())[5];
@@ -585,6 +612,8 @@ static uptr UnmangleLongJmpSp(uptr mangled_sp) {
 #        define LONG_JMP_SP_ENV_SLOT 1
 #      elif SANITIZER_RISCV64
 #        define LONG_JMP_SP_ENV_SLOT 13
+#      elif SANITIZER_SPARC64
+#        define LONG_JMP_SP_ENV_SLOT 21
 #      elif defined(__s390x__)
 #        define LONG_JMP_SP_ENV_SLOT 9
 #      else

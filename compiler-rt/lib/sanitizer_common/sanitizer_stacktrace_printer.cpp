@@ -254,7 +254,7 @@ void FormattedStackTracePrinter::RenderFrame(InternalScopedString *buffer,
       break;
     case 'M':
       // Module basename and offset, or PC.
-      if (address & kExternalPCBit) {
+      if (IsExternalPC(address)) {
         // There PCs are not meaningful.
       } else if (info->module) {
         // Always strip the module name for %M.

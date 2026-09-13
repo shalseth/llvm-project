@@ -14,7 +14,7 @@
 #include "tsan_interface.h"
 #include "tsan_rtl.h"
 
-#define CALLERPC ((uptr)__builtin_return_address(0))
+#define CALLERPC GET_CALLER_PC()
 
 using namespace __tsan;
 

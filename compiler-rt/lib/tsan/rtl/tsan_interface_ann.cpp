@@ -23,7 +23,7 @@
 #include "tsan_report.h"
 #include "tsan_rtl.h"
 
-#define CALLERPC ((uptr)__builtin_return_address(0))
+#define CALLERPC GET_CALLER_PC()
 
 using namespace __tsan;
 
@@ -45,13 +45,13 @@ class ScopedAnnotation {
   ThreadState *const thr_;
 };
 
-#define SCOPED_ANNOTATION_RET(typ, ret)                     \
-  if (!flags()->enable_annotations)                         \
-    return ret;                                             \
-  ThreadState *thr = cur_thread();                          \
-  const uptr caller_pc = (uptr)__builtin_return_address(0); \
-  ScopedAnnotation sa(thr, __func__, caller_pc);            \
-  const uptr pc = StackTrace::GetCurrentPc();               \
+#define SCOPED_ANNOTATION_RET(typ, ret)          \
+  if (!flags()->enable_annotations)              \
+    return ret;                                  \
+  ThreadState* thr = cur_thread();               \
+  const uptr caller_pc = GET_CALLER_PC();        \
+  ScopedAnnotation sa(thr, __func__, caller_pc); \
+  const uptr pc = StackTrace::GetCurrentPc();    \
   (void)pc;
 
 #define SCOPED_ANNOTATION(typ) SCOPED_ANNOTATION_RET(typ, )

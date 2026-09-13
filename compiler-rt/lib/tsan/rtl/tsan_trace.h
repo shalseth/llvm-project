@@ -64,7 +64,12 @@ static_assert(sizeof(EventAccess) == 8, "bad EventAccess size");
 struct EventFunc {
   u64 is_access : 1;  // = 0
   u64 is_func : 1;    // = 1
+#if SANITIZER_SPARC64
+  // Preserve sign-extended native PCs when restoring the trace.
+  s64 pc : 62;
+#else
   u64 pc : 62;
+#endif
 };
 static_assert(sizeof(EventFunc) == 8, "bad EventFunc size");
 

@@ -22,6 +22,8 @@ int main() {
   const size_t kLog2Size = 32;
 #elif defined(__powerpc64__)
   const size_t kLog2Size = 39;
+#elif defined(__sparc__) && defined(__arch64__)
+  const size_t kLog2Size = 35;
 #elif defined(__s390x__)
   const size_t kLog2Size = 43;
 #endif

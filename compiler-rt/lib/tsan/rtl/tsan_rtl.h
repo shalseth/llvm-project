@@ -77,6 +77,8 @@ typedef SizeClassAllocator32<AP32> PrimaryAllocator;
 struct AP64 {  // Allocator64 parameters. Deliberately using a short name.
 #    if defined(__s390x__)
   typedef MappingS390x Mapping;
+#    elif SANITIZER_LINUX && SANITIZER_SPARC64
+  typedef MappingSparc64_52 Mapping;
 #    else
   typedef Mapping48AddressSpace Mapping;
 #    endif

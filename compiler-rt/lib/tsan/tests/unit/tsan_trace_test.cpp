@@ -16,7 +16,7 @@
 #include "gtest/gtest.h"
 #include "tsan_rtl.h"
 
-#if !defined(__x86_64__)
+#if !defined(__x86_64__) && !SANITIZER_SPARC64
 // These tests are currently crashing on ppc64:
 // https://reviews.llvm.org/D110546#3025422
 // due to the way we create thread contexts
@@ -28,6 +28,25 @@
 #endif
 
 namespace __tsan {
+
+TEST(Trace, FunctionPC) {
+  const uptr pcs[] = {
+      0, 0x20000001000ull, kExternalPCBit | 0x1234,
+#if SANITIZER_SPARC64
+      0xfff8000100001000ull,
+#else
+      kExternalPCBit | (1ull << 61) | 0x1234,
+#endif
+  };
+  for (uptr pc : pcs) {
+    EventFunc event = {};
+    event.is_func = 1;
+    event.pc = pc;
+    EXPECT_EQ(static_cast<uptr>(event.pc), pc);
+    EXPECT_EQ(event.is_func, 1u);
+    EXPECT_EQ(event.is_access, 0u);
+  }
+}
 
 // We need to run all trace tests in a new thread,
 // so that the thread trace is empty initially.
@@ -67,25 +86,54 @@ struct ThreadArray {
   operator ThreadState *() { return threads[0]; }
 };
 
+static uptr TestAddr(uptr offset) { return LoAppMemBeg() + offset; }
+
+TRACE_TEST(Trace, HighAppPC) {
+  ThreadArray<1> thr;
+  const uptr pc = HiAppMemBeg() + 0x1000;
+  const uptr addr = TestAddr(0x3000);
+  TraceFunc(thr, pc);
+  TraceMemoryAccessRange(thr, pc + 8, addr, 8, kAccessRead);
+  Lock slot_lock(&ctx->slots[static_cast<uptr>(thr->fast_state.sid())].mtx);
+  ThreadRegistryLock lock1(&ctx->thread_registry);
+  Lock lock2(&ctx->slot_mtx);
+  Tid tid = kInvalidTid;
+  VarSizeStackTrace stack;
+  MutexSet mset;
+  uptr tag = kExternalTagNone;
+  CHECK(RestoreStack(EventType::kAccessExt, thr->fast_state.sid(),
+                     thr->fast_state.epoch(), addr, 8, kAccessRead, &tid,
+                     &stack, &mset, &tag));
+  CHECK_EQ(stack.size, 2);
+  CHECK_EQ(stack.trace[0], pc);
+  CHECK_EQ(stack.trace[1], pc + 8);
+}
+
 TRACE_TEST(Trace, RestoreAccess) {
   // A basic test with some function entry/exit events,
   // some mutex lock/unlock events and some other distracting
   // memory events.
   ThreadArray<1> thr;
-  TraceFunc(thr, 0x1000);
-  TraceFunc(thr, 0x1001);
-  TraceMutexLock(thr, EventType::kLock, 0x4000, 0x5000, 0x6000);
-  TraceMutexLock(thr, EventType::kLock, 0x4001, 0x5001, 0x6001);
-  TraceMutexUnlock(thr, 0x5000);
+  TraceFunc(thr, TestAddr(0x1000));
+  TraceFunc(thr, TestAddr(0x1001));
+  TraceMutexLock(thr, EventType::kLock, TestAddr(0x4000), TestAddr(0x5000),
+                 0x6000);
+  TraceMutexLock(thr, EventType::kLock, TestAddr(0x4001), TestAddr(0x5001),
+                 0x6001);
+  TraceMutexUnlock(thr, TestAddr(0x5000));
   TraceFunc(thr);
-  CHECK(TryTraceMemoryAccess(thr, 0x2001, 0x3001, 8, kAccessRead));
-  TraceMutexLock(thr, EventType::kRLock, 0x4002, 0x5002, 0x6002);
-  TraceFunc(thr, 0x1002);
-  CHECK(TryTraceMemoryAccess(thr, 0x2000, 0x3000, 8, kAccessRead));
+  CHECK(TryTraceMemoryAccess(thr, TestAddr(0x2001), TestAddr(0x3001), 8,
+                             kAccessRead));
+  TraceMutexLock(thr, EventType::kRLock, TestAddr(0x4002), TestAddr(0x5002),
+                 0x6002);
+  TraceFunc(thr, TestAddr(0x1002));
+  CHECK(TryTraceMemoryAccess(thr, TestAddr(0x2000), TestAddr(0x3000), 8,
+                             kAccessRead));
   // This is the access we want to find.
   // The previous one is equivalent, but RestoreStack must prefer
   // the last of the matchig accesses.
-  CHECK(TryTraceMemoryAccess(thr, 0x2002, 0x3000, 8, kAccessRead));
+  CHECK(TryTraceMemoryAccess(thr, TestAddr(0x2002), TestAddr(0x3000), 8,
+                             kAccessRead));
   Lock slot_lock(&ctx->slots[static_cast<uptr>(thr->fast_state.sid())].mtx);
   ThreadRegistryLock lock1(&ctx->thread_registry);
   Lock lock2(&ctx->slot_mtx);
@@ -94,19 +142,19 @@ TRACE_TEST(Trace, RestoreAccess) {
   MutexSet mset;
   uptr tag = kExternalTagNone;
   bool res = RestoreStack(EventType::kAccessExt, thr->fast_state.sid(),
-                          thr->fast_state.epoch(), 0x3000, 8, kAccessRead, &tid,
-                          &stk, &mset, &tag);
+                          thr->fast_state.epoch(), TestAddr(0x3000), 8,
+                          kAccessRead, &tid, &stk, &mset, &tag);
   CHECK(res);
   CHECK_EQ(tid, thr->tid);
   CHECK_EQ(stk.size, 3);
-  CHECK_EQ(stk.trace[0], 0x1000);
-  CHECK_EQ(stk.trace[1], 0x1002);
-  CHECK_EQ(stk.trace[2], 0x2002);
+  CHECK_EQ(stk.trace[0], TestAddr(0x1000));
+  CHECK_EQ(stk.trace[1], TestAddr(0x1002));
+  CHECK_EQ(stk.trace[2], TestAddr(0x2002));
   CHECK_EQ(mset.Size(), 2);
-  CHECK_EQ(mset.Get(0).addr, 0x5001);
+  CHECK_EQ(mset.Get(0).addr, TestAddr(0x5001));
   CHECK_EQ(mset.Get(0).stack_id, 0x6001);
   CHECK_EQ(mset.Get(0).write, true);
-  CHECK_EQ(mset.Get(1).addr, 0x5002);
+  CHECK_EQ(mset.Get(1).addr, TestAddr(0x5002));
   CHECK_EQ(mset.Get(1).stack_id, 0x6002);
   CHECK_EQ(mset.Get(1).write, false);
   CHECK_EQ(tag, kExternalTagNone);
@@ -129,21 +177,21 @@ TRACE_TEST(Trace, MemoryAccessSize) {
       ThreadArray<1> thr;
       Printf("access_size=%zu, offset=%zu, size=%zu, res=%d, type=%d\n",
              params.access_size, params.offset, params.size, params.res, type);
-      TraceFunc(thr, 0x1000);
+      TraceFunc(thr, TestAddr(0x1000));
       switch (type) {
         case 0:
           // This should emit compressed event.
-          CHECK(TryTraceMemoryAccess(thr, 0x2000, 0x3000, params.access_size,
-                                     kAccessRead));
+          CHECK(TryTraceMemoryAccess(thr, TestAddr(0x2000), TestAddr(0x3000),
+                                     params.access_size, kAccessRead));
           break;
         case 1:
           // This should emit full event.
-          CHECK(TryTraceMemoryAccess(thr, 0x2000000, 0x3000, params.access_size,
-                                     kAccessRead));
+          CHECK(TryTraceMemoryAccess(thr, TestAddr(0x2000000), TestAddr(0x3000),
+                                     params.access_size, kAccessRead));
           break;
         case 2:
-          TraceMemoryAccessRange(thr, 0x2000000, 0x3000, params.access_size,
-                                 kAccessRead);
+          TraceMemoryAccessRange(thr, TestAddr(0x2000000), TestAddr(0x3000),
+                                 params.access_size, kAccessRead);
           break;
       }
       Lock slot_lock(&ctx->slots[static_cast<uptr>(thr->fast_state.sid())].mtx);
@@ -153,15 +201,15 @@ TRACE_TEST(Trace, MemoryAccessSize) {
       VarSizeStackTrace stk;
       MutexSet mset;
       uptr tag = kExternalTagNone;
-      bool res =
-          RestoreStack(EventType::kAccessExt, thr->fast_state.sid(),
-                       thr->fast_state.epoch(), 0x3000 + params.offset,
-                       params.size, kAccessRead, &tid, &stk, &mset, &tag);
+      bool res = RestoreStack(EventType::kAccessExt, thr->fast_state.sid(),
+                              thr->fast_state.epoch(),
+                              TestAddr(0x3000) + params.offset, params.size,
+                              kAccessRead, &tid, &stk, &mset, &tag);
       CHECK_EQ(res, params.res);
       if (params.res) {
         CHECK_EQ(stk.size, 2);
-        CHECK_EQ(stk.trace[0], 0x1000);
-        CHECK_EQ(stk.trace[1], type ? 0x2000000 : 0x2000);
+        CHECK_EQ(stk.trace[0], TestAddr(0x1000));
+        CHECK_EQ(stk.trace[1], type ? TestAddr(0x2000000) : TestAddr(0x2000));
       }
     }
   }
@@ -170,10 +218,13 @@ TRACE_TEST(Trace, MemoryAccessSize) {
 TRACE_TEST(Trace, RestoreMutexLock) {
   // Check of restoration of a mutex lock event.
   ThreadArray<1> thr;
-  TraceFunc(thr, 0x1000);
-  TraceMutexLock(thr, EventType::kLock, 0x4000, 0x5000, 0x6000);
-  TraceMutexLock(thr, EventType::kRLock, 0x4001, 0x5001, 0x6001);
-  TraceMutexLock(thr, EventType::kRLock, 0x4002, 0x5001, 0x6002);
+  TraceFunc(thr, TestAddr(0x1000));
+  TraceMutexLock(thr, EventType::kLock, TestAddr(0x4000), TestAddr(0x5000),
+                 0x6000);
+  TraceMutexLock(thr, EventType::kRLock, TestAddr(0x4001), TestAddr(0x5001),
+                 0x6001);
+  TraceMutexLock(thr, EventType::kRLock, TestAddr(0x4002), TestAddr(0x5001),
+                 0x6002);
   Lock slot_lock(&ctx->slots[static_cast<uptr>(thr->fast_state.sid())].mtx);
   ThreadRegistryLock lock1(&ctx->thread_registry);
   Lock lock2(&ctx->slot_mtx);
@@ -182,17 +233,17 @@ TRACE_TEST(Trace, RestoreMutexLock) {
   MutexSet mset;
   uptr tag = kExternalTagNone;
   bool res = RestoreStack(EventType::kLock, thr->fast_state.sid(),
-                          thr->fast_state.epoch(), 0x5001, 0, 0, &tid, &stk,
-                          &mset, &tag);
+                          thr->fast_state.epoch(), TestAddr(0x5001), 0, 0, &tid,
+                          &stk, &mset, &tag);
   CHECK(res);
   CHECK_EQ(stk.size, 2);
-  CHECK_EQ(stk.trace[0], 0x1000);
-  CHECK_EQ(stk.trace[1], 0x4002);
+  CHECK_EQ(stk.trace[0], TestAddr(0x1000));
+  CHECK_EQ(stk.trace[1], TestAddr(0x4002));
   CHECK_EQ(mset.Size(), 2);
-  CHECK_EQ(mset.Get(0).addr, 0x5000);
+  CHECK_EQ(mset.Get(0).addr, TestAddr(0x5000));
   CHECK_EQ(mset.Get(0).stack_id, 0x6000);
   CHECK_EQ(mset.Get(0).write, true);
-  CHECK_EQ(mset.Get(1).addr, 0x5001);
+  CHECK_EQ(mset.Get(1).addr, TestAddr(0x5001));
   CHECK_EQ(mset.Get(1).stack_id, 0x6001);
   CHECK_EQ(mset.Get(1).write, false);
 }
@@ -200,23 +251,25 @@ TRACE_TEST(Trace, RestoreMutexLock) {
 TRACE_TEST(Trace, MultiPart) {
   // Check replay of a trace with multiple parts.
   ThreadArray<1> thr;
-  FuncEntry(thr, 0x1000);
-  FuncEntry(thr, 0x2000);
-  MutexPreLock(thr, 0x4000, 0x5000, 0);
-  MutexPostLock(thr, 0x4000, 0x5000, 0);
-  MutexPreLock(thr, 0x4000, 0x5000, 0);
-  MutexPostLock(thr, 0x4000, 0x5000, 0);
+  FuncEntry(thr, TestAddr(0x1000));
+  FuncEntry(thr, TestAddr(0x2000));
+  MutexPreLock(thr, TestAddr(0x4000), TestAddr(0x5000), 0);
+  MutexPostLock(thr, TestAddr(0x4000), TestAddr(0x5000), 0);
+  MutexPreLock(thr, TestAddr(0x4000), TestAddr(0x5000), 0);
+  MutexPostLock(thr, TestAddr(0x4000), TestAddr(0x5000), 0);
   const uptr kEvents = 3 * sizeof(TracePart) / sizeof(Event);
   for (uptr i = 0; i < kEvents; i++) {
-    FuncEntry(thr, 0x3000);
-    MutexPreLock(thr, 0x4002, 0x5002, 0);
-    MutexPostLock(thr, 0x4002, 0x5002, 0);
-    MutexUnlock(thr, 0x4003, 0x5002, 0);
+    FuncEntry(thr, TestAddr(0x3000));
+    MutexPreLock(thr, TestAddr(0x4002), TestAddr(0x5002), 0);
+    MutexPostLock(thr, TestAddr(0x4002), TestAddr(0x5002), 0);
+    MutexUnlock(thr, TestAddr(0x4003), TestAddr(0x5002), 0);
     FuncExit(thr);
   }
-  FuncEntry(thr, 0x4000);
-  TraceMutexLock(thr, EventType::kRLock, 0x4001, 0x5001, 0x6001);
-  CHECK(TryTraceMemoryAccess(thr, 0x2002, 0x3000, 8, kAccessRead));
+  FuncEntry(thr, TestAddr(0x4000));
+  TraceMutexLock(thr, EventType::kRLock, TestAddr(0x4001), TestAddr(0x5001),
+                 0x6001);
+  CHECK(TryTraceMemoryAccess(thr, TestAddr(0x2002), TestAddr(0x3000), 8,
+                             kAccessRead));
   Lock slot_lock(&ctx->slots[static_cast<uptr>(thr->fast_state.sid())].mtx);
   ThreadRegistryLock lock1(&ctx->thread_registry);
   Lock lock2(&ctx->slot_mtx);
@@ -225,20 +278,20 @@ TRACE_TEST(Trace, MultiPart) {
   MutexSet mset;
   uptr tag = kExternalTagNone;
   bool res = RestoreStack(EventType::kAccessExt, thr->fast_state.sid(),
-                          thr->fast_state.epoch(), 0x3000, 8, kAccessRead, &tid,
-                          &stk, &mset, &tag);
+                          thr->fast_state.epoch(), TestAddr(0x3000), 8,
+                          kAccessRead, &tid, &stk, &mset, &tag);
   CHECK(res);
   CHECK_EQ(tid, thr->tid);
   CHECK_EQ(stk.size, 4);
-  CHECK_EQ(stk.trace[0], 0x1000);
-  CHECK_EQ(stk.trace[1], 0x2000);
-  CHECK_EQ(stk.trace[2], 0x4000);
-  CHECK_EQ(stk.trace[3], 0x2002);
+  CHECK_EQ(stk.trace[0], TestAddr(0x1000));
+  CHECK_EQ(stk.trace[1], TestAddr(0x2000));
+  CHECK_EQ(stk.trace[2], TestAddr(0x4000));
+  CHECK_EQ(stk.trace[3], TestAddr(0x2002));
   CHECK_EQ(mset.Size(), 2);
-  CHECK_EQ(mset.Get(0).addr, 0x5000);
+  CHECK_EQ(mset.Get(0).addr, TestAddr(0x5000));
   CHECK_EQ(mset.Get(0).write, true);
   CHECK_EQ(mset.Get(0).count, 2);
-  CHECK_EQ(mset.Get(1).addr, 0x5001);
+  CHECK_EQ(mset.Get(1).addr, TestAddr(0x5001));
   CHECK_EQ(mset.Get(1).write, false);
   CHECK_EQ(mset.Get(1).count, 1);
 }
@@ -246,11 +299,12 @@ TRACE_TEST(Trace, MultiPart) {
 TRACE_TEST(Trace, DeepSwitch) {
   ThreadArray<1> thr;
   for (int i = 0; i < 2000; i++) {
-    FuncEntry(thr, 0x1000);
+    FuncEntry(thr, TestAddr(0x1000));
     const uptr kEvents = sizeof(TracePart) / sizeof(Event);
     for (uptr i = 0; i < kEvents; i++) {
-      TraceMutexLock(thr, EventType::kLock, 0x4000, 0x5000, 0x6000);
-      TraceMutexUnlock(thr, 0x5000);
+      TraceMutexLock(thr, EventType::kLock, TestAddr(0x4000), TestAddr(0x5000),
+                     0x6000);
+      TraceMutexUnlock(thr, TestAddr(0x5000));
     }
   }
 }

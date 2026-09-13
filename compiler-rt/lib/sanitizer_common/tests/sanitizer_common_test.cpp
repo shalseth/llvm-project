@@ -40,6 +40,17 @@ static bool IsSorted(const uptr *array, uptr n) {
   return true;
 }
 
+#if SANITIZER_WORDSIZE == 64
+TEST(SanitizerCommon, ExternalPC) {
+  EXPECT_FALSE(IsExternalPC(0x20000001000ull));
+  EXPECT_TRUE(IsExternalPC(kExternalPCBit | 0x1234));
+#  if SANITIZER_SPARC64
+  EXPECT_FALSE(IsExternalPC(0xfff8000100001000ull));
+  EXPECT_FALSE(IsExternalPC(0xfffff80000001000ull));
+#  endif
+}
+#endif
+
 TEST(SanitizerCommon, SortTest) {
   uptr array[100];
   uptr n = 100;

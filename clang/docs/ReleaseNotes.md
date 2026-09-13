@@ -872,6 +872,10 @@ The `alpha.cplusplus.UseAfterLifetimeEnd` checker was renamed to `alpha.core.Use
 
 ### Sanitizers
 
+- Added ThreadSanitizer support for Linux SPARC64 with a 52-bit virtual address
+  space. Clang links instrumented executables at the fixed address required by
+  the runtime; see [ThreadSanitizer](ThreadSanitizer.md#linux-sparc64).
+
 ### Python Binding Changes
 
 ### OpenMP Support
