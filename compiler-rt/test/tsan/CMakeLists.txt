@@ -59,6 +59,9 @@ foreach(arch ${TSAN_TEST_ARCH})
   if(COMPILER_RT_TSAN_HAS_STATIC_RUNTIME)
     string(TOLOWER "-${arch}-${OS_NAME}-dynamic" TSAN_TEST_CONFIG_SUFFIX)
     set(CONFIG_NAME ${ARCH_UPPER_CASE}${OS_NAME}DynamicConfig)
+    if(COMPILER_RT_TEST_COMPILER_ID STREQUAL "Clang")
+      string(APPEND TSAN_TEST_TARGET_CFLAGS " -shared-libsan")
+    endif()
     configure_lit_site_cfg(
       ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
       ${CMAKE_CURRENT_BINARY_DIR}/${CONFIG_NAME}/lit.site.cfg.py
