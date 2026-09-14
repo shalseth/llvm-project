@@ -267,10 +267,17 @@ else()
       PARENT_TARGET tsan)
     list(APPEND TSAN_RUNTIME_LIBRARIES clang_rt.tsan-${arch}
                                        clang_rt.tsan_cxx-${arch})
+    add_compiler_rt_runtime(clang_rt.tsan-preinit
+      STATIC
+      ARCHS ${arch}
+      SOURCES ${TSAN_PREINIT_SOURCES}
+      ADDITIONAL_HEADERS ${TSAN_HEADERS}
+      CFLAGS ${TSAN_RTL_CFLAGS}
+      PARENT_TARGET tsan)
     add_compiler_rt_runtime(clang_rt.tsan
       SHARED
       ARCHS ${arch}
-      SOURCES ${TSAN_SOURCES} ${TSAN_ASM_SOURCES}
+      SOURCES ${TSAN_SOURCES} ${TSAN_CXX_SOURCES} ${TSAN_ASM_SOURCES}
               $<TARGET_OBJECTS:RTInterception.${arch}>
               $<TARGET_OBJECTS:RTSanitizerCommon.${arch}>
               $<TARGET_OBJECTS:RTSanitizerCommonLibc.${arch}>
