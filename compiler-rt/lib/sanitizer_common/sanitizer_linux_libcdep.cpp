@@ -410,6 +410,13 @@ struct TlsBlock {
   uptr begin, end, align;
   size_t tls_modid;
   bool operator<(const TlsBlock &rhs) const { return begin < rhs.begin; }
+  bool IsAdjacentTo(const TlsBlock &next) const {
+    // glibc allocates SPARC64 static TLS towards lower addresses, so padding
+    // above a block is governed by that block's alignment.
+    const uptr gap_align =
+        SANITIZER_GLIBC && SANITIZER_SPARC64 ? align : next.align;
+    return next.begin <= end + gap_align;
+  }
 };
 }  // namespace
 
@@ -502,15 +509,14 @@ __attribute__((unused)) static void GetStaticTlsBoundary(uptr *addr, uptr *size,
     *align = 1;
     return;
   }
-  // Find the maximum consecutive ranges. We consider two modules consecutive if
-  // the gap is smaller than the alignment of the latter range. The dynamic
-  // loader places static TLS blocks this way not to waste space.
+  // Find the maximum consecutive ranges, allowing for alignment padding
+  // between static TLS blocks.
   uptr l = one;
   *align = ranges[l].align;
-  while (l != 0 && ranges[l].begin <= ranges[l - 1].end + ranges[l].align)
+  while (l != 0 && ranges[l - 1].IsAdjacentTo(ranges[l]))
     *align = Max(*align, ranges[--l].align);
   uptr r = one + 1;
-  while (r != len && ranges[r].begin <= ranges[r - 1].end + ranges[r].align)
+  while (r != len && ranges[r - 1].IsAdjacentTo(ranges[r]))
     *align = Max(*align, ranges[r++].align);
   *addr = ranges[l].begin;
   *size = ranges[r - 1].end - ranges[l].begin;
