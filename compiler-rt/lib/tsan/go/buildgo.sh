@@ -22,6 +22,8 @@ if [ "`uname -a | grep Linux`" != "" ]; then
 		HOST_GOARCH="riscv64"
 	elif [ "`uname -a | grep s390x`" != "" ]; then
 		HOST_GOARCH="s390x"
+	elif [ "`uname -a | grep sparc64`" != "" ]; then
+		HOST_GOARCH="sparc64"
 	fi
 elif [ "`uname -a | grep FreeBSD`" != "" ]; then
 	HOST_GOOS="freebsd"
@@ -119,6 +121,9 @@ if [ "$GOOS" = "linux" ]; then
 		else
 			ARCHCFLAGS="-march=rv64gc"
 		fi
+	elif [ "$GOARCH" = "sparc64" ]; then
+		ARCHCFLAGS="-m64"
+		OSLDFLAGS="-lpthread -fPIC -fPIE"
 	elif [ "$GOARCH" = "s390x" ]; then
 		SRCS="$SRCS ../../sanitizer_common/sanitizer_linux_s390.cpp"
 		ARCHCFLAGS=""

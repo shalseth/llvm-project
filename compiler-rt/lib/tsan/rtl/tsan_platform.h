@@ -795,6 +795,26 @@ struct MappingGoS390x {
   static const uptr kShadowAdd = 0x400000000000ull;
 };
 
+// Go on Linux/SPARC64: low application memory, shadow and metadata.
+struct MappingGoSparc64_52 {
+  static const uptr kMetaShadowBeg = 0x700000000000ull;
+  static const uptr kMetaShadowEnd = 0x780000000000ull;
+  static const uptr kShadowBeg     = 0x400000000000ull;
+  static const uptr kShadowEnd = 0x600000000000ull;
+  static const uptr kLoAppMemBeg = 0x000000001000ull;
+  static const uptr kLoAppMemEnd = 0x100000000000ull;
+  static const uptr kMidAppMemBeg = 0;
+  static const uptr kMidAppMemEnd = 0;
+  static const uptr kHiAppMemBeg = 0;
+  static const uptr kHiAppMemEnd = 0;
+  static const uptr kHeapMemBeg = 0;
+  static const uptr kHeapMemEnd = 0;
+  static const uptr kVdsoBeg = 0;
+  static const uptr kShadowMsk = 0;
+  static const uptr kShadowXor = 0;
+  static const uptr kShadowAdd = 0x400000000000ull;
+};
+
 // Linux/SPARC64 with a 52-bit, sign-extended user address space.
 struct MappingSparc64_52 {
   static const uptr kLoAppMemBeg = 0x020000000000ull;
@@ -831,6 +851,9 @@ ALWAYS_INLINE auto SelectMapping(Arg arg) {
   return Func::template Apply<MappingGoMips64_47>(arg);
 #  elif defined(__s390x__)
   return Func::template Apply<MappingGoS390x>(arg);
+#  elif SANITIZER_LINUX && SANITIZER_SPARC64
+  if (vmaSize == 52)
+    return Func::template Apply<MappingGoSparc64_52>(arg);
 #  elif defined(__aarch64__)
   return Func::template Apply<MappingGoAarch64>(arg);
 #  elif defined(__loongarch_lp64)
@@ -922,6 +945,7 @@ void ForEachMapping() {
   Func::template Apply<MappingGoRiscv64_39>();
   Func::template Apply<MappingGoRiscv64_48>();
   Func::template Apply<MappingGoS390x>();
+  Func::template Apply<MappingGoSparc64_52>();
 }
 
 enum MappingType {

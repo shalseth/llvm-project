@@ -344,7 +344,7 @@ static void ReExecIfNeeded(bool ignore_heap) {
 #  endif
 
 void InitializePlatformEarly() {
-#  if SANITIZER_SPARC64 && !SANITIZER_GO
+#  if SANITIZER_SPARC64
   const uptr page = GetPageSizeCached();
   const uptr probe = internal_mmap(nullptr, page, PROT_NONE,
                                    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
